@@ -18,6 +18,7 @@ namespace NBitcoin.Altcoins.GincoinInternals.Lyra2
 	{
 		private const ulong BLOCK_LEN_BLAKE2_SAFE_INT64 = 8;
 		private const ulong BLOCK_LEN_BLAKE2_SAFE_BYTES = BLOCK_LEN_BLAKE2_SAFE_INT64 * 8;
+		private readonly Lyra2Version version;
 
 		private ulong[] state;
 		MemoryMatrix memMatrix;
@@ -40,6 +41,11 @@ namespace NBitcoin.Altcoins.GincoinInternals.Lyra2
 			0x510e527fade682d1UL, 0x9b05688c2b3e6c1fUL,
 			0x1f83d9abfb41bd6bUL, 0x5be0cd19137e2179UL
 		};
+
+		public Lyra2(Lyra2Version v = Lyra2Version.v2)
+		{
+			version = v;
+		}
 
 		private void ClearSettings()
 		{
@@ -99,13 +105,19 @@ namespace NBitcoin.Altcoins.GincoinInternals.Lyra2
 
 		private void RunWanderingPhase(ulong timeCost, ulong nCols, ulong nRows)
 		{
+			var index = 0ul;
 			row = 0;
 			for (tau = 1; (ulong)tau <= timeCost; tau++)
 			{
 				step = (tau % 2 == 0) ? -1 : (int)nRows / 2 - 1;
 				do
 				{
-                    rowa = (long)(((state[0])) % nRows);
+					// LYRA2_3 selects a random row here
+					index = state[index % 16];
+					if (version >= Lyra2Version.v3)
+						rowa = (long)(state[index % 16] % nRows);
+					else
+						rowa = (long)(state[0] % nRows);
 
 					sponge.ReducedDuplexRow((ulong)prev, (ulong)rowa, (ulong)row, nCols);
 
@@ -122,7 +134,9 @@ namespace NBitcoin.Altcoins.GincoinInternals.Lyra2
 		{
 			for (i = 0; i < nBlocksInput; i++)
 			{
-				var arrayPassed = wholeMatrix.Skip((int)(i * (int)BLOCK_LEN_BLAKE2_SAFE_INT64 * (int)LyraConstants.UINT64_SIZE)).ToArray();
+				// LYRA2_old uses wrong block size here
+				var blockSize = version >= Lyra2Version.v2 ? BLOCK_LEN_BLAKE2_SAFE_INT64 : BLOCK_LEN_BLAKE2_SAFE_BYTES;
+				var arrayPassed = wholeMatrix.Skip((int)(i * (int)blockSize * (int)LyraConstants.UINT64_SIZE)).ToArray();
 				sponge.AbsorbBlockBlake2Safe(arrayPassed);
 			}
 
