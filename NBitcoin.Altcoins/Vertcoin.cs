@@ -589,7 +589,8 @@ namespace NBitcoin.Altcoins
 					[BIP9Deployments.TestDummy] = new BIP9DeploymentsParameters(28, 0, 999999999),
 					[BIP9Deployments.CSV] = new BIP9DeploymentsParameters(0, 0, 999999999),
 					[BIP9Deployments.Segwit] = new BIP9DeploymentsParameters(1, BIP9DeploymentsParameters.AlwaysActive, 999999999)
-				}
+				},
+				SupportTaproot = true,
 			})
 			.SetBase58Bytes(Base58Type.PUBKEY_ADDRESS, new byte[] { 71 })
 			.SetBase58Bytes(Base58Type.SCRIPT_ADDRESS, new byte[] { 5 })
