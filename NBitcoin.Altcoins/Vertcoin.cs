@@ -387,6 +387,9 @@ namespace NBitcoin.Altcoins
 			public int Lyra2REv3Block { get; }
 			public DateTimeOffset Lyra2REv3Start { get; }
 
+			public int VerthashBlock { get; }
+			public DateTimeOffset VerthashStart { get; }
+
 			/// <summary>
 			/// Constructs an instance of <see cref="VertcoinConsensusFactory"/> with the specified algorithm parameters.
 			/// </summary>
@@ -396,9 +399,12 @@ namespace NBitcoin.Altcoins
 			/// <param name="lyra2REv2Start">The block time where the PoW algorithm changes to Lyra2REv2.</param>
 			/// <param name="lyra2REv3Block">The block height where the PoW algorithm changes to Lyra2REv3.</param>
 			/// <param name="lyra2REv3Start">The block time where the PoW algorithm changes to Lyra2REv3.</param>
+			/// <param name="verthashBlock">The block height where the PoW algorithm changes to Verthash.</param>
+			/// <param name="verthashStart">The block time where the PoW algorithm changes to Verthash.</param>
 			private VertcoinConsensusFactory(int lyra2REBlock = int.MaxValue, uint lyra2REStart = uint.MaxValue,
 											 int lyra2REv2Block = int.MaxValue, uint lyra2REv2Start = uint.MaxValue,
-											 int lyra2REv3Block = int.MaxValue, uint lyra2REv3Start = uint.MaxValue)
+											 int lyra2REv3Block = int.MaxValue, uint lyra2REv3Start = uint.MaxValue,
+											 int verthashBlock = int.MaxValue, uint verthashStart = uint.MaxValue)
 			{
 				Lyra2REBlock = lyra2REBlock;
 				Lyra2REStart = Utils.UnixTimeToDateTime(lyra2REStart);
@@ -406,6 +412,8 @@ namespace NBitcoin.Altcoins
 				Lyra2REv2Start = Utils.UnixTimeToDateTime(lyra2REv2Start);
 				Lyra2REv3Block = lyra2REv3Block;
 				Lyra2REv3Start = Utils.UnixTimeToDateTime(lyra2REv3Start);
+				VerthashBlock = verthashBlock;
+				VerthashStart = Utils.UnixTimeToDateTime(verthashStart);
 			}
 
 			/// <summary>
@@ -413,6 +421,7 @@ namespace NBitcoin.Altcoins
 			/// </summary>
 			/// <remarks>
 			/// Algorithm      Start Block  Start Time
+			/// Verthash	   1500000		1611961376
 			/// Lyra2REv3      1080001      1549058708
 			/// Lyra2REv2      347000       1439191139
 			/// Lyra2RE        208301       1418454333
@@ -420,24 +429,29 @@ namespace NBitcoin.Altcoins
 			/// </remarks>
 			public static VertcoinConsensusFactory Mainnet { get; } = new VertcoinConsensusFactory(208301, 1418454333,
 																									347000, 1439191139,
-																								   1080001, 1549058708);
+																									1080001, 1549058708,
+																									1500000, 1611961376);
 
 			/// <summary>
 			/// The <see cref="VertcoinConsensusFactory"/> instance configured for the test network.
 			/// </summary>
 			/// <remarks>
 			/// Algorithm      Start Block  Start Time
+			/// Verthash	   1500000		-
 			/// Lyra2REv3      158220       ??
 			/// Lyra2REv2      0            -
 			/// </remarks>
-			public static VertcoinConsensusFactory Testnet { get; } = new VertcoinConsensusFactory(lyra2REv2Block: 0, lyra2REv2Start: 0,
-																								   lyra2REv3Block: 158220);
+			public static VertcoinConsensusFactory Testnet { get; } = new VertcoinConsensusFactory(lyra2REv2Block: 0,
+																									lyra2REv2Start: 0,
+																									lyra2REv3Block: 158220,
+																									verthashBlock: 1500000);
 
 			/// <summary>
 			/// The <see cref="VertcoinConsensusFactory"/> instance configured for regtest.
 			/// </summary>
 			/// <remarks>
 			/// Algorithm      Start Block  Start Time
+			/// Verthash	   1500000		-
 			/// Lyra2REv3      1080001      -
 			/// Lyra2REv2      347000       -
 			/// Lyra2RE        208301       -
@@ -445,7 +459,8 @@ namespace NBitcoin.Altcoins
 			/// </remarks>
 			public static VertcoinConsensusFactory Regtest { get; } = new VertcoinConsensusFactory(208301, uint.MaxValue,
 																								   347000, uint.MaxValue,
-																								  1080001, uint.MaxValue);
+																								  1080001, uint.MaxValue,
+																								  1500000, uint.MaxValue);
 
 			public override BlockHeader CreateBlockHeader()
 			{
@@ -469,7 +484,11 @@ namespace NBitcoin.Altcoins
 			public uint256 GetPoWHashForHeight(int blockHeight, byte[] headerBytes)
 			{
 				byte[] h;
-				if (blockHeight >= Lyra2REv3Block)
+				if(blockHeight >= VerthashBlock)
+				{
+					h = null;
+				}
+				else if (blockHeight >= Lyra2REv3Block)
 					h = Lyra2REv2.ComputeHash(headerBytes);
 				else if (blockHeight >= Lyra2REv2Block)
 					h = Lyra2REv2.ComputeHash(headerBytes);
@@ -494,7 +513,11 @@ namespace NBitcoin.Altcoins
 			public uint256 GetPoWHashForTime(DateTimeOffset blockTime, byte[] headerBytes)
 			{
 				byte[] h;
-				if (blockTime >= Lyra2REv3Start)
+				if (blockTime >= VerthashStart)
+				{
+					h = null;
+				}
+				else if (blockTime >= Lyra2REv3Start)
 					h = Lyra2REv2.ComputeHash(headerBytes);
 				else if (blockTime >= Lyra2REv2Start)
 					h = Lyra2REv2.ComputeHash(headerBytes);
@@ -639,7 +662,9 @@ namespace NBitcoin.Altcoins
 				MinerConfirmationWindow = 50,
 				CoinbaseMaturity = 100,
 				LitecoinWorkCalculation = true,
-				ConsensusFactory = VertcoinConsensusFactory.Testnet
+				ConsensusFactory = VertcoinConsensusFactory.Testnet,
+				SupportSegwit = true,
+				SupportTaproot = true,
 			})
 			.SetBase58Bytes(Base58Type.PUBKEY_ADDRESS, new byte[] { 74 })
 			.SetBase58Bytes(Base58Type.SCRIPT_ADDRESS, new byte[] { 196 })
@@ -686,7 +711,9 @@ namespace NBitcoin.Altcoins
 				MinerConfirmationWindow = 144,
 				CoinbaseMaturity = 100,
 				LitecoinWorkCalculation = true,
-				ConsensusFactory = VertcoinConsensusFactory.Regtest
+				ConsensusFactory = VertcoinConsensusFactory.Regtest,
+				SupportSegwit = true,
+				SupportTaproot = true,
 			})
 			.SetBase58Bytes(Base58Type.PUBKEY_ADDRESS, new byte[] { 74 })
 			.SetBase58Bytes(Base58Type.SCRIPT_ADDRESS, new byte[] { 196 })

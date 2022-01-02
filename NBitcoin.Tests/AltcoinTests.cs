@@ -601,6 +601,7 @@ namespace NBitcoin.Tests
 			var lyra2re = Altcoins.GincoinInternals.Lyra2.Lyra2RE.ComputeHash(data);
 			var lyra2rev2 = Altcoins.GincoinInternals.Lyra2.Lyra2REv2.ComputeHash(data);
 			var lyra2rev3 = Altcoins.GincoinInternals.Lyra2.Lyra2REv3.ComputeHash(data);
+			// var verthash = Altcoins.GincoinInternals
 
 			Assert.Equal(expectedscryptn, scryptn);
 			Assert.Equal(expectedlyra2_v1, lyra2_v1);
