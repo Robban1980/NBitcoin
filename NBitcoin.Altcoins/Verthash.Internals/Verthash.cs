@@ -1,6 +1,5 @@
 ﻿using NBitcoin.BouncyCastle.Crypto.Digests;
 using System;
-using static NBitcoin.Altcoins.HashX11.HashFactory.Crypto;
 
 namespace NBitcoin.Altcoins.Verthash.Internals
 {
@@ -26,8 +25,7 @@ namespace NBitcoin.Altcoins.Verthash.Internals
 		public Verthash(Verthashdat verthashdat)
 		{
 			_verthashdat = verthashdat;
-			Sha3Digest sha3 =
-			
+
 			_sha3_256 = new Sha3Digest();
 			_sha3_512 = new Sha3Digest(512);
 		}
@@ -101,8 +99,6 @@ namespace NBitcoin.Altcoins.Verthash.Internals
 			for (uint i = 0; i < _nIndexes; i++)
 			{
 				uint offset = (fnv1a(seekIndexes[i], valueAccumulator) % mdiv) * _byteAlignment;
-
-
 				for (uint i2 = 0; i2 < _hashSizeOut / 4; i2++)
 				{
 					using (var va = _verthashdat.VerthashFile.CreateViewAccessor(offset + i2 * 4, 4, System.IO.MemoryMappedFiles.MemoryMappedFileAccess.Read))
