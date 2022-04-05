@@ -20,6 +20,7 @@ Currently supported altcoins are:
 * Polis
 * Terracoin
 * UFO
+* Vertcoin
 * Viacoin
 * Zclassic
 * Koto

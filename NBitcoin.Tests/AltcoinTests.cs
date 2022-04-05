@@ -577,6 +577,7 @@ namespace NBitcoin.Tests
 		[Fact]
 		public void CanProduceVertcoinPoW()
 		{
+			// Setup
 			var expectedscryptn = Encoders.Hex.DecodeData("46e916cd312c8b86a2bab3d09e18691db694c3d3e56d5ad022fd51e7d67605e3");
 			var expectedlyra2_v1 = Encoders.Hex.DecodeData("abcff45917ad5ee83905d669784e5a89c3aeecd25d303d8758d089b4cb3d9919");
 			var expectedlyra2_v2 = Encoders.Hex.DecodeData("d40b0ed002f15dda9d73a775573dadda998330650b80025f7b8099f6e6c10a01");
@@ -584,32 +585,48 @@ namespace NBitcoin.Tests
 			var expectedlyra2re = Encoders.Hex.DecodeData("5e207f8828344cbcd58dcfb55b42d94f109d3c6fa74d9aafb67744a303741464");
 			var expectedlyra2rev2 = Encoders.Hex.DecodeData("df3ccd797f3c039d2a586a795829a40ea8532a62c9ae9f7cd74f8f8f506577f5");
 			var expectedlyra2rev3 = Encoders.Hex.DecodeData("5d7b298258e78881c7831ba1e46751b089efdf1fdb9eb01edd03b8d7ed39eafb");
+			var expectedVerthash = Encoders.Hex.DecodeData("6c06db6380a2e55f3d841fd5782480824c876952deb19f1487d9f91f3a1a9a0e");
+
 			var data = Encoders.Hex.DecodeData("700000005d385ba114d079971b29a9418fd0549e7d68a95c7f168621a314201000000000578586d149fd07b22f3a8a347c516de7052f034d2b76ff68e0d6ecff9b77a45489e3fd511732011df0731000");
 
+			// local method
 			byte[] Lyra(Altcoins.GincoinInternals.Lyra2.Lyra2Version rev)
 			{
 				var lyra2bytes = new byte[32];
 				var size = rev >= Altcoins.GincoinInternals.Lyra2.Lyra2Version.v2 ? 4ul : 8ul;
 				new Altcoins.GincoinInternals.Lyra2.Lyra2(rev).Calculate(lyra2bytes, data, data, 1, size, size);
 				return lyra2bytes;
-			}
+			}		
 
+			// Act
 			var scryptn = Crypto.SCrypt.ComputeDerivedKey(data, data, 2048, 1, 1, null, 32);
 			var lyra2_v1 = Lyra(Altcoins.GincoinInternals.Lyra2.Lyra2Version.v1);
 			var lyra2_v2 = Lyra(Altcoins.GincoinInternals.Lyra2.Lyra2Version.v2);
 			var lyra2_v3 = Lyra(Altcoins.GincoinInternals.Lyra2.Lyra2Version.v3);
+
 			var lyra2re = Altcoins.GincoinInternals.Lyra2.Lyra2RE.ComputeHash(data);
 			var lyra2rev2 = Altcoins.GincoinInternals.Lyra2.Lyra2REv2.ComputeHash(data);
 			var lyra2rev3 = Altcoins.GincoinInternals.Lyra2.Lyra2REv3.ComputeHash(data);
-			// var verthash = Altcoins.GincoinInternals
 
+			string datFile = Path.Combine(@"C:\Users\rober\AppData\Roaming\Vertcoin");
+			byte[] verthash = new byte[32];
+			using (NBitcoin.Altcoins.Verthash.Internals.Verthashdat vhdat = Altcoins.Verthash.Internals.Verthashdat.GetInstance(datFile))
+			{
+				vhdat.LoadInRam();
+				var verthashPow = new NBitcoin.Altcoins.Verthash.Internals.Verthash(vhdat);
+				verthash = verthashPow.HashSafe(data);
+			}
+
+			// Assert
 			Assert.Equal(expectedscryptn, scryptn);
 			Assert.Equal(expectedlyra2_v1, lyra2_v1);
 			Assert.Equal(expectedlyra2_v2, lyra2_v2);
 			Assert.Equal(expectedlyra2_v3, lyra2_v3);
+
 			Assert.Equal(expectedlyra2re, lyra2re);
 			Assert.Equal(expectedlyra2rev2, lyra2rev2);
 			Assert.Equal(expectedlyra2rev3, lyra2rev3);
+			Assert.Equal(expectedVerthash, verthash);
 		}
 
 		[Fact]

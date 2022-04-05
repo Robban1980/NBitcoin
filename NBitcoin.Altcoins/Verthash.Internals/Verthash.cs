@@ -1,117 +1,127 @@
-﻿namespace NBitcoin.Altcoins.Verthash.Internals
+﻿using NBitcoin.BouncyCastle.Crypto.Digests;
+using System;
+using static NBitcoin.Altcoins.HashX11.HashFactory.Crypto;
+
+namespace NBitcoin.Altcoins.Verthash.Internals
 {
 	public class Verthash
 	{
-		private static readonly uint HEADER_SIZE = 80;
-		private static readonly uint HASH_OUT_SIZE = 32;
-		private static readonly uint P0_SIZE = 64;
-		private static readonly uint N_ITER = 8;
-		private static readonly uint N_SUBSET P0_SIZE* N_ITER;
-		private static readonly uint N_ROT = 32;
-		private static readonly uint N_INDEXES = 4096;
-		private static readonly uint BYTE_ALIGNMENT = 16;
+		private static readonly int _headerSize = 80;
+		private static readonly uint _hashSizeOut = 32;
+		private static readonly uint _p0Size = 64;
+		private static readonly uint _NIterations = 8; // iterations
+		private static readonly uint _nSubset = _p0Size * _NIterations;
+		private static readonly uint _nRotations = 32; // Rotations
+		private static readonly uint _nIndexes = 4096;
+		private static readonly uint _byteAlignment = 16;
 
-		public Verthash()
+		// FNV constants
+		private static readonly uint _prime = 16777619;
+
+		private Verthashdat _verthashdat;
+
+		private Sha3Digest _sha3_256;
+		private Sha3Digest _sha3_512;
+
+		public Verthash(Verthashdat verthashdat)
 		{
+			_verthashdat = verthashdat;
+			Sha3Digest sha3 =
 			
+			_sha3_256 = new Sha3Digest();
+			_sha3_512 = new Sha3Digest(512);
 		}
 
-		public unsafe int* Hash(int* input)
+		private uint fnv1a(uint a, uint b)
 		{
-			int* output;
+			return (a ^ b) * _prime;
+		}
 
-			byte[] input_header = new byte[HEADER_SIZE];
+		public byte[] HashSafe(byte[] input)
+		{
+			byte[] input_header = new byte[_headerSize];
+			Buffer.BlockCopy(input, 0, input_header, 0, _headerSize);
+			byte[] p1 = new byte[_hashSizeOut];
 
-			fixed (pInput_header = input_header)
+			// 1. Generation of inital 32-byte array from 80-byte block header by using sha3-256 hash function
+			byte[] tmpSha3 = new byte[32];
+			// sha3hash should be 32 bytesit works so an erro
+			_sha3_256.BlockUpdate(input_header, 0, _headerSize);
+			_sha3_256.DoFinal(tmpSha3, 0);
+
+			// Copy the specified number of bytes from source to target.
+			for (int i = 0; i < tmpSha3.Length; i++)
 			{
-
-				memcpy(&pInput_header[0], input, HEADER_SIZE);
+				p1[i] = tmpSha3[i];
 			}
 
-			byte[] p1 = new byte[HASH_OUT_SIZE];
+			byte[] p0 = new byte[_nSubset];
 
-			sha3(&input_header[0], HEADER_SIZE, &p1[0], HASH_OUT_SIZE);
-
-			byte[] p0 = new byte[N_SUBSET];
-
-			for (size_t i = 0; i < N_ITER; i++)
+			// 2. Generation of a 512-byte array (128 4-byte pointers) by using 8 iterations of sha3-512, based on block header with incremented first byte (parallel task on GPU).
+			for (int i = 0; i < _NIterations; i++)
 			{
 				input_header[0] += 1;
-				sha3(&input_header[0], HEADER_SIZE, p0 + i * P0_SIZE, P0_SIZE);
+				byte[] digest64 = new byte[64];
+				_sha3_512.BlockUpdate(input_header, 0, _headerSize);
+				_sha3_512.DoFinal(digest64, 0);
+
+				Buffer.BlockCopy(digest64, 0, p0, (int)(i * _p0Size), (int)_p0Size);
 			}
 
-			uint32_t* p0_index = (uint32_t*)p0;
-			uint32_t seek_indexes[N_INDEXES];
+			uint[] seekIndexes = new uint[_nIndexes];
 
-			for (size_t x = 0; x < N_ROT; x++)
+			// convert p0 byts to uint's
+			uint[] p0Index = new uint[p0.Length / 4];
+			for (int i = 0; i < p0.Length; i += 4)
 			{
-				memcpy(seek_indexes + x * (N_SUBSET / sizeof(uint32_t)), p0, N_SUBSET);
-				for (size_t y = 0; y < N_SUBSET / sizeof(uint32_t); y++)
-				{
+				p0Index[i / 4] = BitConverter.ToUInt32(p0, i);
+			}
 
-					*(p0_index + y) = (*(p0_index + y) << 1) | (1 & (*(p0_index + y) >> 31));
+			// Step 3: Expansion of pointer array by factor 32 (4096 4-byte pointers) using bit-wise rotation.
+			uint size = (_nSubset / 4);
+			for (uint x = 0; x < _nRotations; x++)
+			{
+				for (uint i = 0; i < _nSubset / 4; i++)
+				{
+					seekIndexes[(x * size) + i] = p0Index[i];
+				}
+
+				for (int y = 0; y < p0Index.Length; y++)
+				{
+					p0Index[y] = (p0Index[y] << 1) | (1 & (p0Index[y] >> 31));
 				}
 			}
 
-			size_t datfile_sz = datFileSize;
-			FILE* VerthashDatFile;
+			// Step 4: Initalization of accumulator to avoid deprecated fnv - 0 usage.
+			uint valueAccumulator = 0x811c9dc5;
 
-			if (!datFileInRam)
+			// Step 5: Logical enumeration of 16 - byte chunks inside 1GB + verthash.dat file.
+			uint mdiv = ((((uint)_verthashdat.FileSize) - _hashSizeOut) / _byteAlignment) + 1;
+
+			for (uint i = 0; i < _nIndexes; i++)
 			{
-				fs::path dataFile = GetDataDir() / "verthash.dat";
-				if (!boost::filesystem::exists(dataFile))
-				{
-					throw std::runtime_error("Verthash datafile not found");
-				}
-				VerthashDatFile = fsbridge::fopen(dataFile.c_str(), "rb");
-				fseek(VerthashDatFile, 0, SEEK_END);
-				datfile_sz = ftell(VerthashDatFile);
-			}
+				uint offset = (fnv1a(seekIndexes[i], valueAccumulator) % mdiv) * _byteAlignment;
 
-			uint32_t* p1_32 = (uint32_t*)p1;
-			uint32_t value_accumulator = 0x811c9dc5;
-			const uint32_t mdiv = ((datfile_sz - HASH_OUT_SIZE) / BYTE_ALIGNMENT) + 1;
 
-			if (!datFileInRam)
-			{
-				size_t read_len = -1;
-				for (size_t i = 0; i < N_INDEXES; i++)
+				for (uint i2 = 0; i2 < _hashSizeOut / 4; i2++)
 				{
-					const long offset = (fnv1a(seek_indexes[i], value_accumulator) % mdiv) * BYTE_ALIGNMENT;
-					fseek(VerthashDatFile, offset, SEEK_SET);
-					for (size_t i2 = 0; i2 < HASH_OUT_SIZE / sizeof(uint32_t); i2++)
+					using (var va = _verthashdat.VerthashFile.CreateViewAccessor(offset + i2 * 4, 4, System.IO.MemoryMappedFiles.MemoryMappedFileAccess.Read))
 					{
-						uint32_t value = 0;
-						read_len = fread(&value, sizeof(uint32_t), 1, VerthashDatFile);
-						assert(read_len == 1);
-						uint32_t* p1_ptr = p1_32 + i2;
-						*p1_ptr = fnv1a(*p1_ptr, value);
+						uint value = va.ReadUInt32(0);
+						byte[] tmp = new byte[4];
+						Buffer.BlockCopy(p1, (int)i2 * 4, tmp, 0, 4);
+						var tmpUint = BitConverter.ToUInt32(tmp);
+						var res = fnv1a(tmpUint, value);
+						tmp = BitConverter.GetBytes(res);
+						Buffer.BlockCopy(tmp, 0, p1, (int)i2 * 4, 4);
 
-						value_accumulator = fnv1a(value_accumulator, value);
-					}
-				}
-			}
-			else
-			{
-				uint32_t* blob_bytes_32 = (uint32_t*)datFile;
-				for (size_t i = 0; i < N_INDEXES; i++)
-				{
-					const uint32_t offset = (fnv1a(seek_indexes[i], value_accumulator) % mdiv) * BYTE_ALIGNMENT / sizeof(uint32_t);
-					for (size_t i2 = 0; i2 < HASH_OUT_SIZE / sizeof(uint32_t); i2++)
-					{
-						const uint32_t value = *(blob_bytes_32 + offset + i2);
-						uint32_t* p1_ptr = p1_32 + i2;
-						*p1_ptr = fnv1a(*p1_ptr, value);
-						value_accumulator = fnv1a(value_accumulator, value);
+						valueAccumulator = fnv1a(valueAccumulator, (uint)value);
 					}
 				}
 			}
 
-			memcpy(output, &p1[0], HASH_OUT_SIZE);
-			if (!datFileInRam)
-			{
-				fclose(VerthashDatFile);
-			}
+			return p1;
+
 		}
 	}
 }
